@@ -263,3 +263,7 @@ robots.txt
 
 # Specifications
 RFC-006-conversor-solicitacao-reserva.md
+
+# Gradle / Kotlin Build & Cache
+**/.gradle/
+**/build/
