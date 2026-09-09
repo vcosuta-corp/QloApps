@@ -35,6 +35,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:$junitVersion")
     testImplementation("io.ktor:ktor-server-tests-jvm:$ktorVersion")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
 }
 
 application {
@@ -72,3 +73,4 @@ tasks.register("staticAnalysis") {
     description = "Runs all style, formatting, and code smell checks."
     dependsOn("spotlessCheck", "detekt")
 }
+
