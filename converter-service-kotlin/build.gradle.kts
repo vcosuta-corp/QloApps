@@ -2,6 +2,8 @@ plugins {
     kotlin("jvm") version "1.9.23"
     kotlin("plugin.serialization") version "1.9.23"
     application
+    id("com.diffplug.spotless") version "6.25.0"
+    id("io.gitlab.arturbosch.detekt") version "1.23.3"
 }
 
 group = "com.hotel"
@@ -45,4 +47,28 @@ tasks.test {
 
 kotlin {
     jvmToolchain(17)
+}
+
+spotless {
+    kotlin {
+        target("**/*.kt")
+        targetExclude("**/build/**")
+        ktlint()
+    }
+    java {
+        target("**/*.java")
+        targetExclude("**/build/**")
+        googleJavaFormat()
+    }
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(files("$projectDir/config/detekt.yml"))
+}
+
+tasks.register("staticAnalysis") {
+    group = "verification"
+    description = "Runs all style, formatting, and code smell checks."
+    dependsOn("spotlessCheck", "detekt")
 }
