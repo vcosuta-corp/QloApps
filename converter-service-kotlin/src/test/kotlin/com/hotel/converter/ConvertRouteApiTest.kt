@@ -8,6 +8,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.ByteArrayContent
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test
 
 private const val VALID_CORRELATION_ID = "c3d4e5f6-a7b8-4c0d-9e2f-3a4b5c6d7e8f"
 
+@Suppress("LargeClass")
 class ConvertRouteApiTest {
     @Test
     fun `1 - GET healthz returns 200 and status UP`() =
@@ -651,5 +653,108 @@ class ConvertRouteApiTest {
             val firstErr = json["errors"]?.jsonArray?.get(0)?.jsonObject
             assertEquals("X-Correlation-ID", firstErr?.get("field")?.jsonPrimitive?.content)
             assertEquals("INVALID_HEADER", firstErr?.get("error_code")?.jsonPrimitive?.content)
+        }
+
+    @Test
+    fun `18 - missing Content-Type header returns 400 with HEADER_REQUIRED`() =
+        testApplication {
+            application {
+                module()
+            }
+
+            val requestPayload =
+                """
+                {
+                  "provider": "PROVIDER_A",
+                  "payload": {
+                    "guest_full_name": "Marcos Lima",
+                    "arrival": "2026-09-10",
+                    "nights": 1
+                  }
+                }
+                """.trimIndent()
+
+            val response =
+                client.post("/v1/external-reservation-requests/convert") {
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
+                    setBody(ByteArrayContent(requestPayload.toByteArray(), contentType = null))
+                }
+
+            assertEquals(HttpStatusCode.BadRequest, response.status)
+            val body = response.bodyAsText()
+            val json = Json.parseToJsonElement(body).jsonObject
+            val firstErr = json["errors"]?.jsonArray?.get(0)?.jsonObject
+            assertEquals("Content-Type", firstErr?.get("field")?.jsonPrimitive?.content)
+            assertEquals("HEADER_REQUIRED", firstErr?.get("error_code")?.jsonPrimitive?.content)
+        }
+
+    @Test
+    fun `19 - unsupported Content-Type header returns 400 with UNSUPPORTED_MEDIA_TYPE`() =
+        testApplication {
+            application {
+                module()
+            }
+
+            val requestPayload =
+                """
+                {
+                  "provider": "PROVIDER_A",
+                  "payload": {
+                    "guest_full_name": "Marcos Lima",
+                    "arrival": "2026-09-10",
+                    "nights": 1
+                  }
+                }
+                """.trimIndent()
+
+            val response =
+                client.post("/v1/external-reservation-requests/convert") {
+                    header(HttpHeaders.ContentType, "text/plain")
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
+                    setBody(requestPayload)
+                }
+
+            assertEquals(HttpStatusCode.BadRequest, response.status)
+            val body = response.bodyAsText()
+            val json = Json.parseToJsonElement(body).jsonObject
+            val firstErr = json["errors"]?.jsonArray?.get(0)?.jsonObject
+            assertEquals("Content-Type", firstErr?.get("field")?.jsonPrimitive?.content)
+            assertEquals("UNSUPPORTED_MEDIA_TYPE", firstErr?.get("error_code")?.jsonPrimitive?.content)
+        }
+
+    @Test
+    fun `20 - Content-Type application-json with charset parameter returns 200`() =
+        testApplication {
+            application {
+                module()
+            }
+
+            val requestPayload =
+                """
+                {
+                  "provider": "PROVIDER_A",
+                  "payload": {
+                    "guest_full_name": "Carlos Silva",
+                    "arrival": "2026-10-15",
+                    "nights": 2,
+                    "room_count": 1,
+                    "channel_reference": "REF-CHARSET"
+                  }
+                }
+                """.trimIndent()
+
+            val response =
+                client.post("/v1/external-reservation-requests/convert") {
+                    header(HttpHeaders.ContentType, "application/json; charset=utf-8")
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
+                    setBody(requestPayload)
+                }
+
+            assertEquals(HttpStatusCode.OK, response.status)
+            val body = response.bodyAsText()
+            val json = Json.parseToJsonElement(body).jsonObject
+            assertEquals("SUCCESS", json["status"]?.jsonPrimitive?.content)
+            val draft = json["draft"]?.jsonObject
+            assertEquals("Carlos Silva", draft?.get("guest_name")?.jsonPrimitive?.content)
         }
 }

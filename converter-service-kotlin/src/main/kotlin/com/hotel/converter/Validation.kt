@@ -49,3 +49,22 @@ fun validateCorrelationId(headerValue: String?): ValidationResult<String> {
         ValidationResult.Success(trimmed ?: "")
     }
 }
+
+fun validateContentType(headerValue: String?): ValidationError? {
+    val clean = headerValue?.split(";")?.firstOrNull()?.trim()?.lowercase()
+    return when {
+        headerValue == null ->
+            ValidationError(
+                "Content-Type",
+                "HEADER_REQUIRED",
+                "Header obrigatorio 'Content-Type' ausente.",
+            )
+        clean != "application/json" ->
+            ValidationError(
+                "Content-Type",
+                "UNSUPPORTED_MEDIA_TYPE",
+                "Header 'Content-Type' deve ser 'application/json'.",
+            )
+        else -> null
+    }
+}

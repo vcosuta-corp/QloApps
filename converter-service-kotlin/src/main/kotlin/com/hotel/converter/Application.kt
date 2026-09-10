@@ -1,6 +1,7 @@
 package com.hotel.converter
 
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
@@ -76,6 +77,17 @@ private fun Route.registerConvertRoute() {
                 }
                 is ValidationResult.Success -> correlationResult.value
             }
+
+        val rawContentType = call.request.headers[HttpHeaders.ContentType]
+        val contentTypeError = validateContentType(rawContentType)
+        if (contentTypeError != null) {
+            respondValidationErrors(
+                call = call,
+                errors = listOf(contentTypeError),
+                correlationId = correlationId,
+            )
+            return@post
+        }
 
         try {
             handleConversion(call, correlationId)
