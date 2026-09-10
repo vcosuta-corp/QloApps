@@ -15,12 +15,19 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 private const val SERVER_PORT = 8106
 private const val SERVER_HOST = "127.0.0.1"
+
+private val jsonEncoder =
+    Json {
+        encodeDefaults = true
+        prettyPrint = false
+    }
 
 data class ReservationDraft(
     val guestName: String,
@@ -110,22 +117,21 @@ private suspend fun respondUnsupportedProvider(
 ) {
     val correlationId = call.request.headers["X-Correlation-ID"] ?: "corr-demo"
     call.response.header("X-Correlation-ID", correlationId)
-    val json =
-        """
-        {
-          "correlation_id": "$correlationId",
-          "status": "FAILED",
-          "draft": null,
-          "errors": [
-            {
-              "field": "provider",
-              "error_code": "UNSUPPORTED_PROVIDER",
-              "message": "Provedor nao suportado: $provider"
-            }
-          ]
-        }
-        """.trimIndent()
-    call.respondText(json, ContentType.Application.Json, HttpStatusCode.BadRequest)
+    val response =
+        ConversionApiResponse(
+            correlationId = correlationId,
+            status = "FAILED",
+            draft = null,
+            errors =
+                listOf(
+                    ValidationErrorPayload(
+                        field = "provider",
+                        errorCode = "UNSUPPORTED_PROVIDER",
+                        message = "Provedor nao suportado: $provider",
+                    ),
+                ),
+        )
+    call.respondText(jsonEncoder.encodeToString(response), ContentType.Application.Json, HttpStatusCode.BadRequest)
 }
 
 private suspend fun respondValidationErrors(
@@ -135,48 +141,35 @@ private suspend fun respondValidationErrors(
 ) {
     val correlationId = call.request.headers["X-Correlation-ID"] ?: "corr-demo"
     call.response.header("X-Correlation-ID", correlationId)
-    val errorsJson =
-        errors.joinToString(",") { err ->
-            """
-            {
-              "field": "${err.field}",
-              "error_code": "${err.errorCode}",
-              "message": "${err.message.replace("\"", "\\\"")}"
-            }
-            """.trimIndent()
-        }
-    val json =
-        """
-        {
-          "correlation_id": "$correlationId",
-          "status": "FAILED",
-          "draft": null,
-          "errors": [
-            $errorsJson
-          ]
-        }
-        """.trimIndent()
-    call.respondText(json, ContentType.Application.Json, status)
+    val response =
+        ConversionApiResponse(
+            correlationId = correlationId,
+            status = "FAILED",
+            draft = null,
+            errors = errors.map { ValidationErrorPayload(it.field, it.errorCode, it.message) },
+        )
+    call.respondText(jsonEncoder.encodeToString(response), ContentType.Application.Json, status)
 }
 
 private fun buildSuccessResponse(
     correlationId: String,
     draft: ReservationDraft,
 ): String {
-    return """
-        {
-          "correlation_id": "$correlationId",
-          "status": "SUCCESS",
-          "draft": {
-            "guest_name": "${draft.guestName}",
-            "check_in": "${draft.checkIn}",
-            "check_out": "${draft.checkOut}",
-            "nights": ${draft.nights},
-            "rooms_requested": ${draft.rooms},
-            "channel_reference": "${draft.channelReference}",
-            "source_provider": "${draft.sourceProvider}"
-          },
-          "errors": []
-        }
-        """.trimIndent()
+    val response =
+        ConversionApiResponse(
+            correlationId = correlationId,
+            status = "SUCCESS",
+            draft =
+                CanonicalDraftPayload(
+                    guestName = draft.guestName,
+                    checkIn = draft.checkIn,
+                    checkOut = draft.checkOut,
+                    nights = draft.nights,
+                    roomsRequested = draft.rooms,
+                    channelReference = draft.channelReference,
+                    sourceProvider = draft.sourceProvider,
+                ),
+            errors = emptyList(),
+        )
+    return jsonEncoder.encodeToString(response)
 }

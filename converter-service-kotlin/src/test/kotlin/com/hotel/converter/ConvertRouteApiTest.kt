@@ -504,4 +504,71 @@ class ConvertRouteApiTest {
             val draft = json["draft"]?.jsonObject
             assertEquals("Maria Oliveira", draft?.get("guest_name")?.jsonPrimitive?.content)
         }
+
+    @Test
+    fun `14 - special characters and quotes in channel reference are safely serialized`() =
+        testApplication {
+            application {
+                module()
+            }
+
+            val complexRef = """BOOK"123\456/789"""
+            val requestPayload =
+                """
+                {
+                  "provider": "PROVIDER_A",
+                  "payload": {
+                    "guest_full_name": "Marcos Lima",
+                    "arrival": "2026-09-10",
+                    "nights": 1,
+                    "channel_reference": "BOOK\"123\\456/789"
+                  }
+                }
+                """.trimIndent()
+
+            val response =
+                client.post("/v1/external-reservation-requests/convert") {
+                    header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    setBody(requestPayload)
+                }
+
+            assertEquals(HttpStatusCode.OK, response.status)
+            val body = response.bodyAsText()
+            val json = Json.parseToJsonElement(body).jsonObject
+            val draft = json["draft"]?.jsonObject
+            assertEquals(complexRef, draft?.get("channel_reference")?.jsonPrimitive?.content)
+        }
+
+    @Test
+    fun `15 - special characters in correlation id are safely serialized in json response`() =
+        testApplication {
+            application {
+                module()
+            }
+
+            val complexCorrelation = """corr"test\123"""
+            val requestPayload =
+                """
+                {
+                  "provider": "PROVIDER_A",
+                  "payload": {
+                    "guest_full_name": "Marcos Lima",
+                    "arrival": "2026-09-10",
+                    "nights": 1
+                  }
+                }
+                """.trimIndent()
+
+            val response =
+                client.post("/v1/external-reservation-requests/convert") {
+                    header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", complexCorrelation)
+                    setBody(requestPayload)
+                }
+
+            assertEquals(HttpStatusCode.OK, response.status)
+            val body = response.bodyAsText()
+            val json = Json.parseToJsonElement(body).jsonObject
+            assertEquals(complexCorrelation, json["correlation_id"]?.jsonPrimitive?.content)
+        }
 }
