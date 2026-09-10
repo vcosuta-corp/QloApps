@@ -16,13 +16,8 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.time.LocalDate
-import java.time.format.DateTimeParseException
-import java.time.temporal.ChronoUnit
 
 private const val SERVER_PORT = 8106
 private const val SERVER_HOST = "127.0.0.1"
@@ -60,14 +55,16 @@ private fun Route.registerConvertRoute() {
     post("/v1/external-reservation-requests/convert") {
         try {
             handleConversion(call)
-        } catch (e: IllegalArgumentException) {
-            respondInvalidSchema(call, e.message)
         } catch (e: SerializationException) {
-            respondInvalidSchema(call, e.message)
-        } catch (e: IllegalStateException) {
-            respondInvalidSchema(call, e.message)
-        } catch (e: DateTimeParseException) {
-            respondInvalidSchema(call, e.message)
+            respondValidationErrors(
+                call,
+                listOf(ValidationError("payload", "INVALID_SCHEMA", "JSON malformatado: ${e.message}")),
+            )
+        } catch (e: IllegalArgumentException) {
+            respondValidationErrors(
+                call,
+                listOf(ValidationError("payload", "INVALID_SCHEMA", e.message ?: "Argumento invalido")),
+            )
         }
     }
 }
@@ -76,11 +73,17 @@ private suspend fun handleConversion(call: ApplicationCall) {
     val rawText = call.receiveText()
     val rootObj = Json.parseToJsonElement(rawText).jsonObject
     val provider = rootObj["provider"]?.jsonPrimitive?.content.orEmpty()
-    val payload =
-        rootObj["payload"]?.jsonObject
-            ?: throw IllegalArgumentException("payload obrigatorio")
+    val payload = rootObj["payload"]?.jsonObject
 
-    val draft =
+    if (payload == null) {
+        respondValidationErrors(
+            call,
+            listOf(ValidationError("payload", "INVALID_SCHEMA", "payload obrigatorio")),
+        )
+        return
+    }
+
+    val parseResult =
         when (provider) {
             "PROVIDER_A" -> parseProviderA(payload)
             "PROVIDER_B" -> parseProviderB(payload)
@@ -90,62 +93,15 @@ private suspend fun handleConversion(call: ApplicationCall) {
             }
         }
 
-    val correlationId = call.request.headers["X-Correlation-ID"] ?: "corr-demo"
-    call.response.header("X-Correlation-ID", correlationId)
-    val responseJson = buildSuccessResponse(correlationId, draft)
-    call.respondText(responseJson, ContentType.Application.Json, HttpStatusCode.OK)
-}
-
-private fun parseProviderA(payload: JsonObject): ReservationDraft {
-    val guestName = payload["guest_full_name"]?.jsonPrimitive?.content ?: "Hospede Nao Informado"
-    val checkInStr =
-        payload["arrival"]?.jsonPrimitive?.content
-            ?: throw IllegalArgumentException("arrival obrigatorio")
-    val nights = payload["nights"]?.jsonPrimitive?.int ?: 1
-    val rooms = payload["room_count"]?.jsonPrimitive?.int ?: 1
-    val channelRef = payload["channel_reference"]?.jsonPrimitive?.content ?: "N/A"
-
-    val inDate = LocalDate.parse(checkInStr)
-    val checkOutStr = inDate.plusDays(nights.toLong()).toString()
-
-    return ReservationDraft(
-        guestName = guestName,
-        checkIn = checkInStr,
-        checkOut = checkOutStr,
-        nights = nights,
-        rooms = rooms,
-        channelReference = channelRef,
-        sourceProvider = "PROVIDER_A",
-    )
-}
-
-private fun parseProviderB(payload: JsonObject): ReservationDraft {
-    val customerObj = payload["customer"]?.jsonObject
-    val firstName = customerObj?.get("first_name")?.jsonPrimitive?.content.orEmpty()
-    val lastName = customerObj?.get("last_name")?.jsonPrimitive?.content.orEmpty()
-    val guestName = "$firstName $lastName".trim()
-
-    val checkInStr =
-        payload["checkin_date"]?.jsonPrimitive?.content
-            ?: throw IllegalArgumentException("checkin_date obrigatorio")
-    val checkOutStr =
-        payload["checkout_date"]?.jsonPrimitive?.content
-            ?: throw IllegalArgumentException("checkout_date obrigatorio")
-    val channelRef = payload["reference_id"]?.jsonPrimitive?.content ?: "N/A"
-
-    val inDate = LocalDate.parse(checkInStr)
-    val outDate = LocalDate.parse(checkOutStr)
-    val nights = ChronoUnit.DAYS.between(inDate, outDate).toInt()
-
-    return ReservationDraft(
-        guestName = guestName,
-        checkIn = checkInStr,
-        checkOut = checkOutStr,
-        nights = nights,
-        rooms = 1,
-        channelReference = channelRef,
-        sourceProvider = "PROVIDER_B",
-    )
+    when (parseResult) {
+        is ValidationResult.Failure -> respondValidationErrors(call, parseResult.errors)
+        is ValidationResult.Success -> {
+            val correlationId = call.request.headers["X-Correlation-ID"] ?: "corr-demo"
+            call.response.header("X-Correlation-ID", correlationId)
+            val responseJson = buildSuccessResponse(correlationId, parseResult.value)
+            call.respondText(responseJson, ContentType.Application.Json, HttpStatusCode.OK)
+        }
+    }
 }
 
 private suspend fun respondUnsupportedProvider(
@@ -157,7 +113,9 @@ private suspend fun respondUnsupportedProvider(
     val json =
         """
         {
+          "correlation_id": "$correlationId",
           "status": "FAILED",
+          "draft": null,
           "errors": [
             {
               "field": "provider",
@@ -170,26 +128,35 @@ private suspend fun respondUnsupportedProvider(
     call.respondText(json, ContentType.Application.Json, HttpStatusCode.BadRequest)
 }
 
-private suspend fun respondInvalidSchema(
+private suspend fun respondValidationErrors(
     call: ApplicationCall,
-    message: String?,
+    errors: List<ValidationError>,
+    status: HttpStatusCode = HttpStatusCode.BadRequest,
 ) {
     val correlationId = call.request.headers["X-Correlation-ID"] ?: "corr-demo"
     call.response.header("X-Correlation-ID", correlationId)
+    val errorsJson =
+        errors.joinToString(",") { err ->
+            """
+            {
+              "field": "${err.field}",
+              "error_code": "${err.errorCode}",
+              "message": "${err.message.replace("\"", "\\\"")}"
+            }
+            """.trimIndent()
+        }
     val json =
         """
         {
+          "correlation_id": "$correlationId",
           "status": "FAILED",
+          "draft": null,
           "errors": [
-            {
-              "field": "payload",
-              "error_code": "INVALID_SCHEMA",
-              "message": "$message"
-            }
+            $errorsJson
           ]
         }
         """.trimIndent()
-    call.respondText(json, ContentType.Application.Json, HttpStatusCode.BadRequest)
+    call.respondText(json, ContentType.Application.Json, status)
 }
 
 private fun buildSuccessResponse(
