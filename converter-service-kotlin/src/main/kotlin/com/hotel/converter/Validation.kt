@@ -1,23 +1,10 @@
 package com.hotel.converter
 
+import com.hotel.converter.domain.ValidationError
+import com.hotel.converter.domain.ValidationResult
+
 private val UUID_V4_REGEX =
     Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")
-
-data class ValidationError(
-    val field: String,
-    val errorCode: String,
-    val message: String,
-)
-
-sealed class ValidationResult<out T> {
-    data class Success<T>(val value: T) : ValidationResult<T>()
-
-    data class Failure(val errors: List<ValidationError>) : ValidationResult<Nothing>() {
-        constructor(field: String, errorCode: String, message: String) : this(
-            listOf(ValidationError(field, errorCode, message)),
-        )
-    }
-}
 
 fun validateCorrelationId(headerValue: String?): ValidationResult<String> {
     val trimmed = headerValue?.trim()

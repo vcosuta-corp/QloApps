@@ -1,5 +1,9 @@
 package com.hotel.converter
 
+import com.hotel.converter.adapter.AdapterRegistry
+import com.hotel.converter.domain.CanonicalDraft
+import com.hotel.converter.domain.ValidationError
+import com.hotel.converter.domain.ValidationResult
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -30,16 +34,6 @@ private val jsonEncoder =
         encodeDefaults = true
         prettyPrint = false
     }
-
-data class ReservationDraft(
-    val guestName: String,
-    val checkIn: String,
-    val checkOut: String,
-    val nights: Int,
-    val rooms: Int,
-    val channelReference: String,
-    val sourceProvider: String,
-)
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = SERVER_HOST) {
@@ -125,15 +119,13 @@ private suspend fun handleConversion(
         return
     }
 
-    val parseResult =
-        when (provider) {
-            "PROVIDER_A" -> parseProviderA(payload)
-            "PROVIDER_B" -> parseProviderB(payload)
-            else -> {
-                respondUnsupportedProvider(call, provider, correlationId)
-                return
-            }
-        }
+    val adapter = AdapterRegistry.getAdapter(provider)
+    if (adapter == null) {
+        respondUnsupportedProvider(call, provider, correlationId)
+        return
+    }
+
+    val parseResult = adapter.convert(payload)
 
     when (parseResult) {
         is ValidationResult.Failure -> respondValidationErrors(call, parseResult.errors, correlationId)
@@ -187,7 +179,7 @@ private suspend fun respondValidationErrors(
 
 private fun buildSuccessResponse(
     correlationId: String,
-    draft: ReservationDraft,
+    draft: CanonicalDraft,
 ): String {
     val response =
         ConversionApiResponse(

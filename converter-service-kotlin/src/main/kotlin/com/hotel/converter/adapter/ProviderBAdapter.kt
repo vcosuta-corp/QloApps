@@ -1,0 +1,155 @@
+package com.hotel.converter.adapter
+
+import com.hotel.converter.domain.CanonicalDraft
+import com.hotel.converter.domain.ValidationError
+import com.hotel.converter.domain.ValidationResult
+import com.hotel.converter.domain.normalizeGuestName
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
+import java.time.temporal.ChronoUnit
+
+class ProviderBAdapter : ChannelAdapter {
+    override val providerName: String = "PROVIDER_B"
+
+    override fun convert(payload: JsonObject): ValidationResult<CanonicalDraft> {
+        val errors = mutableListOf<ValidationError>()
+        val guestName = validateCustomer(payload, errors)
+        val dates = validateDates(payload, errors)
+
+        val roomCountRaw =
+            (payload["room_count"] ?: payload["rooms"])?.jsonPrimitive?.content?.toIntOrNull()
+        val hasRoomCount = payload["room_count"] != null || payload["rooms"] != null
+        val rooms = validateRooms(hasRoomCount, roomCountRaw, errors)
+        val channelRef = payload["reference_id"]?.jsonPrimitive?.content ?: "N/A"
+
+        return if (errors.isNotEmpty() || dates == null) {
+            ValidationResult.Failure(errors)
+        } else {
+            ValidationResult.Success(
+                CanonicalDraft(
+                    guestName = guestName,
+                    checkIn = dates.checkInStr,
+                    checkOut = dates.checkOutStr,
+                    nights = dates.nights,
+                    rooms = rooms,
+                    channelReference = channelRef,
+                    sourceProvider = providerName,
+                ),
+            )
+        }
+    }
+
+    private fun validateCustomer(
+        payload: JsonObject,
+        errors: MutableList<ValidationError>,
+    ): String {
+        val customerElement = payload["customer"]
+        if (customerElement !is JsonObject) {
+            val errCode = if (customerElement == null) "FIELD_REQUIRED" else "INVALID_SCHEMA"
+            errors.add(
+                ValidationError(
+                    "customer",
+                    errCode,
+                    "Objeto obrigatorio 'customer' nao encontrado no payload do PROVIDER_B.",
+                ),
+            )
+            return ""
+        }
+
+        val firstName = getStringField(customerElement, "first_name")
+        val lastName = getStringField(customerElement, "last_name")
+        if (firstName.isNullOrBlank()) {
+            errors.add(
+                ValidationError(
+                    "customer.first_name",
+                    "FIELD_REQUIRED",
+                    "Campo obrigatorio 'first_name' nao encontrado ou vazio.",
+                ),
+            )
+        }
+        if (lastName.isNullOrBlank()) {
+            errors.add(
+                ValidationError(
+                    "customer.last_name",
+                    "FIELD_REQUIRED",
+                    "Campo obrigatorio 'last_name' nao encontrado ou vazio.",
+                ),
+            )
+        }
+        return normalizeGuestName("${firstName.orEmpty()} ${lastName.orEmpty()}")
+    }
+
+    private fun parseDate(
+        field: String,
+        value: String,
+        errors: MutableList<ValidationError>,
+    ): LocalDate? {
+        return try {
+            LocalDate.parse(value)
+        } catch (e: DateTimeParseException) {
+            errors.add(
+                ValidationError(
+                    "payload",
+                    "INVALID_SCHEMA",
+                    "Formato de data invalido para '$field': ${e.message}",
+                ),
+            )
+            null
+        }
+    }
+
+    private fun validateDates(
+        payload: JsonObject,
+        errors: MutableList<ValidationError>,
+    ): DateInterval? {
+        val checkInStr = getStringField(payload, "checkin_date")
+        val checkOutStr = getStringField(payload, "checkout_date")
+        if (checkInStr == null) {
+            errors.add(
+                ValidationError(
+                    "checkin_date",
+                    "FIELD_REQUIRED",
+                    "Campo obrigatorio 'checkin_date' nao encontrado no payload do PROVIDER_B.",
+                ),
+            )
+        }
+        if (checkOutStr == null) {
+            errors.add(
+                ValidationError(
+                    "checkout_date",
+                    "FIELD_REQUIRED",
+                    "Campo obrigatorio 'checkout_date' nao encontrado no payload do PROVIDER_B.",
+                ),
+            )
+        }
+
+        var interval: DateInterval? = null
+        if (checkInStr != null && checkOutStr != null) {
+            val inDate = parseDate("checkin_date", checkInStr, errors)
+            val outDate = parseDate("checkout_date", checkOutStr, errors)
+            if (inDate != null && outDate != null) {
+                if (!outDate.isAfter(inDate)) {
+                    errors.add(
+                        ValidationError(
+                            "checkout_date",
+                            "CHECKOUT_BEFORE_CHECKIN",
+                            "Data de check-out ($checkOutStr) deve ser posterior a data de check-in ($checkInStr).",
+                        ),
+                    )
+                } else {
+                    val nights = ChronoUnit.DAYS.between(inDate, outDate).toInt()
+                    interval = DateInterval(checkInStr, checkOutStr, nights)
+                }
+            }
+        }
+        return interval
+    }
+
+    private data class DateInterval(
+        val checkInStr: String,
+        val checkOutStr: String,
+        val nights: Int,
+    )
+}
