@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+private const val VALID_CORRELATION_ID = "c3d4e5f6-a7b8-4c0d-9e2f-3a4b5c6d7e8f"
+
 class ConvertRouteApiTest {
     @Test
     fun `1 - GET healthz returns 200 and status UP`() =
@@ -57,6 +59,7 @@ class ConvertRouteApiTest {
             val response =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(requestPayload)
                 }
 
@@ -102,6 +105,7 @@ class ConvertRouteApiTest {
             val response =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(requestPayload)
                 }
 
@@ -141,6 +145,7 @@ class ConvertRouteApiTest {
             val response =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(requestPayload)
                 }
 
@@ -178,6 +183,7 @@ class ConvertRouteApiTest {
             val response =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(requestPayload)
                 }
 
@@ -200,7 +206,6 @@ class ConvertRouteApiTest {
                 module()
             }
 
-            val expectedCorrelationId = "c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f"
             val requestPayload =
                 """
                 {
@@ -218,16 +223,16 @@ class ConvertRouteApiTest {
             val response =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
-                    header("X-Correlation-ID", expectedCorrelationId)
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(requestPayload)
                 }
 
             assertEquals(HttpStatusCode.OK, response.status)
-            assertEquals(expectedCorrelationId, response.headers["X-Correlation-ID"])
+            assertEquals(VALID_CORRELATION_ID, response.headers["X-Correlation-ID"])
 
             val body = response.bodyAsText()
             val json = Json.parseToJsonElement(body).jsonObject
-            assertEquals(expectedCorrelationId, json["correlation_id"]?.jsonPrimitive?.content)
+            assertEquals(VALID_CORRELATION_ID, json["correlation_id"]?.jsonPrimitive?.content)
         }
 
     @Test
@@ -251,6 +256,7 @@ class ConvertRouteApiTest {
             val response =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(requestPayload)
                 }
 
@@ -269,7 +275,6 @@ class ConvertRouteApiTest {
                 module()
             }
 
-            // Missing guest_full_name
             val missingPayload =
                 """
                 {
@@ -284,6 +289,7 @@ class ConvertRouteApiTest {
             val resMissing =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(missingPayload)
                 }
 
@@ -293,7 +299,6 @@ class ConvertRouteApiTest {
             assertEquals("guest_full_name", errMissing?.get("field")?.jsonPrimitive?.content)
             assertEquals("FIELD_REQUIRED", errMissing?.get("error_code")?.jsonPrimitive?.content)
 
-            // Blank/empty guest_full_name
             val emptyPayload =
                 """
                 {
@@ -309,6 +314,7 @@ class ConvertRouteApiTest {
             val resEmpty =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(emptyPayload)
                 }
 
@@ -341,6 +347,7 @@ class ConvertRouteApiTest {
             val response =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(requestPayload)
                 }
 
@@ -374,6 +381,7 @@ class ConvertRouteApiTest {
             val response =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(requestPayload)
                 }
 
@@ -406,6 +414,7 @@ class ConvertRouteApiTest {
             val response =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(requestPayload)
                 }
 
@@ -423,7 +432,6 @@ class ConvertRouteApiTest {
                 module()
             }
 
-            // Customer missing entirely
             val payloadNoCustomer =
                 """
                 {
@@ -438,6 +446,7 @@ class ConvertRouteApiTest {
             val resNoCust =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(payloadNoCustomer)
                 }
 
@@ -446,7 +455,6 @@ class ConvertRouteApiTest {
             val firstErrNoCust = jsonNoCust["errors"]?.jsonArray?.get(0)?.jsonObject
             assertEquals("customer", firstErrNoCust?.get("field")?.jsonPrimitive?.content)
 
-            // first_name missing
             val payloadNoFirstName =
                 """
                 {
@@ -462,6 +470,7 @@ class ConvertRouteApiTest {
             val resNoFirst =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(payloadNoFirstName)
                 }
 
@@ -495,6 +504,7 @@ class ConvertRouteApiTest {
             val response =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(requestPayload)
                 }
 
@@ -529,6 +539,7 @@ class ConvertRouteApiTest {
             val response =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
                     setBody(requestPayload)
                 }
 
@@ -540,13 +551,12 @@ class ConvertRouteApiTest {
         }
 
     @Test
-    fun `15 - special characters in correlation id are safely serialized in json response`() =
+    fun `15 - missing X-Correlation-ID header returns 400 with HEADER_REQUIRED`() =
         testApplication {
             application {
                 module()
             }
 
-            val complexCorrelation = """corr"test\123"""
             val requestPayload =
                 """
                 {
@@ -562,13 +572,84 @@ class ConvertRouteApiTest {
             val response =
                 client.post("/v1/external-reservation-requests/convert") {
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
-                    header("X-Correlation-ID", complexCorrelation)
+                    // Intentionally omitting X-Correlation-ID
                     setBody(requestPayload)
                 }
 
-            assertEquals(HttpStatusCode.OK, response.status)
+            assertEquals(HttpStatusCode.BadRequest, response.status)
             val body = response.bodyAsText()
             val json = Json.parseToJsonElement(body).jsonObject
-            assertEquals(complexCorrelation, json["correlation_id"]?.jsonPrimitive?.content)
+            val firstErr = json["errors"]?.jsonArray?.get(0)?.jsonObject
+            assertEquals("X-Correlation-ID", firstErr?.get("field")?.jsonPrimitive?.content)
+            assertEquals("HEADER_REQUIRED", firstErr?.get("error_code")?.jsonPrimitive?.content)
+            assertTrue(response.headers["X-Correlation-ID"]?.isNotBlank() == true)
+        }
+
+    @Test
+    fun `16 - empty or blank X-Correlation-ID header returns 400 with INVALID_HEADER`() =
+        testApplication {
+            application {
+                module()
+            }
+
+            val requestPayload =
+                """
+                {
+                  "provider": "PROVIDER_A",
+                  "payload": {
+                    "guest_full_name": "Marcos Lima",
+                    "arrival": "2026-09-10",
+                    "nights": 1
+                  }
+                }
+                """.trimIndent()
+
+            val response =
+                client.post("/v1/external-reservation-requests/convert") {
+                    header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", "   ")
+                    setBody(requestPayload)
+                }
+
+            assertEquals(HttpStatusCode.BadRequest, response.status)
+            val body = response.bodyAsText()
+            val json = Json.parseToJsonElement(body).jsonObject
+            val firstErr = json["errors"]?.jsonArray?.get(0)?.jsonObject
+            assertEquals("X-Correlation-ID", firstErr?.get("field")?.jsonPrimitive?.content)
+            assertEquals("INVALID_HEADER", firstErr?.get("error_code")?.jsonPrimitive?.content)
+        }
+
+    @Test
+    fun `17 - non-UUID-v4 X-Correlation-ID header returns 400 with INVALID_HEADER`() =
+        testApplication {
+            application {
+                module()
+            }
+
+            val requestPayload =
+                """
+                {
+                  "provider": "PROVIDER_A",
+                  "payload": {
+                    "guest_full_name": "Marcos Lima",
+                    "arrival": "2026-09-10",
+                    "nights": 1
+                  }
+                }
+                """.trimIndent()
+
+            val response =
+                client.post("/v1/external-reservation-requests/convert") {
+                    header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", "not-a-valid-uuid-v4")
+                    setBody(requestPayload)
+                }
+
+            assertEquals(HttpStatusCode.BadRequest, response.status)
+            val body = response.bodyAsText()
+            val json = Json.parseToJsonElement(body).jsonObject
+            val firstErr = json["errors"]?.jsonArray?.get(0)?.jsonObject
+            assertEquals("X-Correlation-ID", firstErr?.get("field")?.jsonPrimitive?.content)
+            assertEquals("INVALID_HEADER", firstErr?.get("error_code")?.jsonPrimitive?.content)
         }
 }

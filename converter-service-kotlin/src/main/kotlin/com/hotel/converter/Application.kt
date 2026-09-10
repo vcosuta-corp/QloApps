@@ -19,6 +19,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.util.UUID
 
 private const val SERVER_PORT = 8106
 private const val SERVER_HOST = "127.0.0.1"
@@ -60,23 +61,44 @@ private fun Route.registerHealthRoute() {
 
 private fun Route.registerConvertRoute() {
     post("/v1/external-reservation-requests/convert") {
+        val rawHeader = call.request.headers["X-Correlation-ID"]
+        val correlationResult = validateCorrelationId(rawHeader)
+        val correlationId =
+            when (correlationResult) {
+                is ValidationResult.Failure -> {
+                    val fallbackId = UUID.randomUUID().toString()
+                    respondValidationErrors(
+                        call = call,
+                        errors = correlationResult.errors,
+                        correlationId = fallbackId,
+                    )
+                    return@post
+                }
+                is ValidationResult.Success -> correlationResult.value
+            }
+
         try {
-            handleConversion(call)
+            handleConversion(call, correlationId)
         } catch (e: SerializationException) {
             respondValidationErrors(
-                call,
-                listOf(ValidationError("payload", "INVALID_SCHEMA", "JSON malformatado: ${e.message}")),
+                call = call,
+                errors = listOf(ValidationError("payload", "INVALID_SCHEMA", "JSON malformatado: ${e.message}")),
+                correlationId = correlationId,
             )
         } catch (e: IllegalArgumentException) {
             respondValidationErrors(
-                call,
-                listOf(ValidationError("payload", "INVALID_SCHEMA", e.message ?: "Argumento invalido")),
+                call = call,
+                errors = listOf(ValidationError("payload", "INVALID_SCHEMA", e.message ?: "Argumento invalido")),
+                correlationId = correlationId,
             )
         }
     }
 }
 
-private suspend fun handleConversion(call: ApplicationCall) {
+private suspend fun handleConversion(
+    call: ApplicationCall,
+    correlationId: String,
+) {
     val rawText = call.receiveText()
     val rootObj = Json.parseToJsonElement(rawText).jsonObject
     val provider = rootObj["provider"]?.jsonPrimitive?.content.orEmpty()
@@ -84,8 +106,9 @@ private suspend fun handleConversion(call: ApplicationCall) {
 
     if (payload == null) {
         respondValidationErrors(
-            call,
-            listOf(ValidationError("payload", "INVALID_SCHEMA", "payload obrigatorio")),
+            call = call,
+            errors = listOf(ValidationError("payload", "INVALID_SCHEMA", "payload obrigatorio")),
+            correlationId = correlationId,
         )
         return
     }
@@ -95,15 +118,14 @@ private suspend fun handleConversion(call: ApplicationCall) {
             "PROVIDER_A" -> parseProviderA(payload)
             "PROVIDER_B" -> parseProviderB(payload)
             else -> {
-                respondUnsupportedProvider(call, provider)
+                respondUnsupportedProvider(call, provider, correlationId)
                 return
             }
         }
 
     when (parseResult) {
-        is ValidationResult.Failure -> respondValidationErrors(call, parseResult.errors)
+        is ValidationResult.Failure -> respondValidationErrors(call, parseResult.errors, correlationId)
         is ValidationResult.Success -> {
-            val correlationId = call.request.headers["X-Correlation-ID"] ?: "corr-demo"
             call.response.header("X-Correlation-ID", correlationId)
             val responseJson = buildSuccessResponse(correlationId, parseResult.value)
             call.respondText(responseJson, ContentType.Application.Json, HttpStatusCode.OK)
@@ -114,8 +136,8 @@ private suspend fun handleConversion(call: ApplicationCall) {
 private suspend fun respondUnsupportedProvider(
     call: ApplicationCall,
     provider: String,
+    correlationId: String,
 ) {
-    val correlationId = call.request.headers["X-Correlation-ID"] ?: "corr-demo"
     call.response.header("X-Correlation-ID", correlationId)
     val response =
         ConversionApiResponse(
@@ -137,9 +159,9 @@ private suspend fun respondUnsupportedProvider(
 private suspend fun respondValidationErrors(
     call: ApplicationCall,
     errors: List<ValidationError>,
+    correlationId: String,
     status: HttpStatusCode = HttpStatusCode.BadRequest,
 ) {
-    val correlationId = call.request.headers["X-Correlation-ID"] ?: "corr-demo"
     call.response.header("X-Correlation-ID", correlationId)
     val response =
         ConversionApiResponse(
