@@ -757,4 +757,119 @@ class ConvertRouteApiTest {
             val draft = json["draft"]?.jsonObject
             assertEquals("Carlos Silva", draft?.get("guest_name")?.jsonPrimitive?.content)
         }
+
+    @Test
+    fun `21 - JSON array body returns 400 with INVALID_SCHEMA`() =
+        testApplication {
+            application {
+                module()
+            }
+
+            val response =
+                client.post("/v1/external-reservation-requests/convert") {
+                    header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
+                    setBody("""[{"provider": "PROVIDER_A"}]""")
+                }
+
+            assertEquals(HttpStatusCode.BadRequest, response.status)
+            val body = response.bodyAsText()
+            val json = Json.parseToJsonElement(body).jsonObject
+            assertEquals("FAILED", json["status"]?.jsonPrimitive?.content)
+            val firstErr = json["errors"]?.jsonArray?.get(0)?.jsonObject
+            assertEquals("payload", firstErr?.get("field")?.jsonPrimitive?.content)
+            assertEquals("INVALID_SCHEMA", firstErr?.get("error_code")?.jsonPrimitive?.content)
+        }
+
+    @Test
+    fun `22 - missing provider in body returns 400 with FIELD_REQUIRED`() =
+        testApplication {
+            application {
+                module()
+            }
+
+            val response =
+                client.post("/v1/external-reservation-requests/convert") {
+                    header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
+                    setBody("""{"payload": {}}""")
+                }
+
+            assertEquals(HttpStatusCode.BadRequest, response.status)
+            val body = response.bodyAsText()
+            val json = Json.parseToJsonElement(body).jsonObject
+            assertEquals("FAILED", json["status"]?.jsonPrimitive?.content)
+            val firstErr = json["errors"]?.jsonArray?.get(0)?.jsonObject
+            assertEquals("provider", firstErr?.get("field")?.jsonPrimitive?.content)
+            assertEquals("FIELD_REQUIRED", firstErr?.get("error_code")?.jsonPrimitive?.content)
+        }
+
+    @Test
+    fun `23 - non-string provider in body returns 400 with INVALID_SCHEMA`() =
+        testApplication {
+            application {
+                module()
+            }
+
+            val response =
+                client.post("/v1/external-reservation-requests/convert") {
+                    header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
+                    setBody("""{"provider": 123, "payload": {}}""")
+                }
+
+            assertEquals(HttpStatusCode.BadRequest, response.status)
+            val body = response.bodyAsText()
+            val json = Json.parseToJsonElement(body).jsonObject
+            assertEquals("FAILED", json["status"]?.jsonPrimitive?.content)
+            val firstErr = json["errors"]?.jsonArray?.get(0)?.jsonObject
+            assertEquals("provider", firstErr?.get("field")?.jsonPrimitive?.content)
+            assertEquals("INVALID_SCHEMA", firstErr?.get("error_code")?.jsonPrimitive?.content)
+        }
+
+    @Test
+    fun `24 - missing payload in body returns 400 with FIELD_REQUIRED`() =
+        testApplication {
+            application {
+                module()
+            }
+
+            val response =
+                client.post("/v1/external-reservation-requests/convert") {
+                    header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
+                    setBody("""{"provider": "PROVIDER_A"}""")
+                }
+
+            assertEquals(HttpStatusCode.BadRequest, response.status)
+            val body = response.bodyAsText()
+            val json = Json.parseToJsonElement(body).jsonObject
+            assertEquals("FAILED", json["status"]?.jsonPrimitive?.content)
+            val firstErr = json["errors"]?.jsonArray?.get(0)?.jsonObject
+            assertEquals("payload", firstErr?.get("field")?.jsonPrimitive?.content)
+            assertEquals("FIELD_REQUIRED", firstErr?.get("error_code")?.jsonPrimitive?.content)
+        }
+
+    @Test
+    fun `25 - non-object payload in body returns 400 with INVALID_SCHEMA`() =
+        testApplication {
+            application {
+                module()
+            }
+
+            val response =
+                client.post("/v1/external-reservation-requests/convert") {
+                    header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    header("X-Correlation-ID", VALID_CORRELATION_ID)
+                    setBody("""{"provider": "PROVIDER_A", "payload": "not-an-object"}""")
+                }
+
+            assertEquals(HttpStatusCode.BadRequest, response.status)
+            val body = response.bodyAsText()
+            val json = Json.parseToJsonElement(body).jsonObject
+            assertEquals("FAILED", json["status"]?.jsonPrimitive?.content)
+            val firstErr = json["errors"]?.jsonArray?.get(0)?.jsonObject
+            assertEquals("payload", firstErr?.get("field")?.jsonPrimitive?.content)
+            assertEquals("INVALID_SCHEMA", firstErr?.get("error_code")?.jsonPrimitive?.content)
+        }
 }

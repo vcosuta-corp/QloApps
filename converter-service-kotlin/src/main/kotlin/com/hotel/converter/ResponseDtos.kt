@@ -2,6 +2,13 @@ package com.hotel.converter
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+
+@Serializable
+data class ConversionRequest(
+    val provider: String,
+    val payload: JsonObject? = null,
+)
 
 @Serializable
 data class ConversionApiResponse(

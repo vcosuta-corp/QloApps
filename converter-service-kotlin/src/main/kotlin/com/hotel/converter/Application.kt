@@ -22,8 +22,7 @@ import io.ktor.server.routing.routing
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import java.util.UUID
 
 private const val SERVER_PORT = 8106
@@ -97,6 +96,12 @@ private fun Route.registerConvertRoute() {
                 errors = listOf(ValidationError("payload", "INVALID_SCHEMA", e.message ?: "Argumento inválido")),
                 correlationId = correlationId,
             )
+        } catch (e: IllegalStateException) {
+            respondValidationErrors(
+                call = call,
+                errors = listOf(ValidationError("payload", "INVALID_SCHEMA", e.message ?: "Estado inválido")),
+                correlationId = correlationId,
+            )
         }
     }
 }
@@ -106,25 +111,23 @@ private suspend fun handleConversion(
     correlationId: String,
 ) {
     val rawText = call.receiveText()
-    val rootObj = Json.parseToJsonElement(rawText).jsonObject
-    val provider = rootObj["provider"]?.jsonPrimitive?.content.orEmpty()
-    val payload = rootObj["payload"]?.jsonObject
+    val requestResult = validateRequestBody(rawText)
+    val conversionRequest =
+        when (requestResult) {
+            is ValidationResult.Failure -> {
+                respondValidationErrors(call, requestResult.errors, correlationId)
+                return
+            }
+            is ValidationResult.Success -> requestResult.value
+        }
 
-    if (payload == null) {
-        respondValidationErrors(
-            call = call,
-            errors = listOf(ValidationError("payload", "INVALID_SCHEMA", "payload obrigatório")),
-            correlationId = correlationId,
-        )
-        return
-    }
-
-    val adapter = AdapterRegistry.getAdapter(provider)
+    val adapter = AdapterRegistry.getAdapter(conversionRequest.provider)
     if (adapter == null) {
-        respondUnsupportedProvider(call, provider, correlationId)
+        respondUnsupportedProvider(call, conversionRequest.provider, correlationId)
         return
     }
 
+    val payload = conversionRequest.payload ?: buildJsonObject { }
     val parseResult = adapter.convert(payload)
 
     when (parseResult) {
