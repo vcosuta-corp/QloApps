@@ -9,6 +9,15 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
+/**
+ * Adapter for external reservation requests from PROVIDER_A.
+ *
+ * Implements business rules defined in RFC-006:
+ * - RN-001: Maps arrival + nights into check_in and check_out (LocalDate.plusDays).
+ * - RN-003: Strictly requires nights >= 1 to prevent check_out <= check_in.
+ * - RN-004: Sanitizes and normalizes guest_full_name into canonical guest_name.
+ * - RN-005: Defaults room_count to 1 if omitted.
+ */
 class ProviderAAdapter : ChannelAdapter {
     override val providerName: String = "PROVIDER_A"
 
