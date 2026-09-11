@@ -125,12 +125,16 @@ private suspend fun handleConversion(
     }
 }
 
-private fun Exception.toValidationError(): ValidationError =
+internal fun Exception.toValidationError(): ValidationError =
     when (this) {
         is SerializationException ->
             ValidationError("payload", "INVALID_SCHEMA", "JSON malformatado: ${message ?: ""}".trim())
-        else ->
+        is IllegalStateException ->
+            ValidationError("payload", "INVALID_SCHEMA", message ?: "Estado inválido")
+        is IllegalArgumentException ->
             ValidationError("payload", "INVALID_SCHEMA", message ?: "Argumento inválido")
+        else ->
+            ValidationError("payload", "INVALID_SCHEMA", message ?: "Erro de processamento da requisição")
     }
 
 private suspend fun respondSuccess(
