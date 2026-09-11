@@ -160,4 +160,3 @@ private suspend fun respondFailure(
     error: ValidationError,
     status: HttpStatusCode = HttpStatusCode.BadRequest,
 ) = respondFailure(call, correlationId, listOf(error), status)
-

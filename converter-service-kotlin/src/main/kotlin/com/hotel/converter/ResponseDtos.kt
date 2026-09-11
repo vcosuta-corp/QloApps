@@ -41,6 +41,7 @@ data class ConversionResponse(
                 draft = null,
                 errors = errors.map { it.toPayload() },
             )
+
         fun failure(
             correlationId: String,
             error: ValidationError,
