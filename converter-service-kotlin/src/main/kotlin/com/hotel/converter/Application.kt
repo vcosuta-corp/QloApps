@@ -61,11 +61,7 @@ private fun Route.registerConvertRoute() {
             when (correlationResult) {
                 is ValidationResult.Failure -> {
                     val fallbackId = UUID.randomUUID().toString()
-                    respondValidationErrors(
-                        call = call,
-                        errors = correlationResult.errors,
-                        correlationId = fallbackId,
-                    )
+                    respondFailure(call, fallbackId, correlationResult.errors)
                     return@post
                 }
                 is ValidationResult.Success -> correlationResult.value
@@ -74,34 +70,18 @@ private fun Route.registerConvertRoute() {
         val rawContentType = call.request.headers[HttpHeaders.ContentType]
         val contentTypeError = validateContentType(rawContentType)
         if (contentTypeError != null) {
-            respondValidationErrors(
-                call = call,
-                errors = listOf(contentTypeError),
-                correlationId = correlationId,
-            )
+            respondFailure(call, correlationId, contentTypeError)
             return@post
         }
 
         try {
             handleConversion(call, correlationId)
         } catch (e: SerializationException) {
-            respondValidationErrors(
-                call = call,
-                errors = listOf(ValidationError("payload", "INVALID_SCHEMA", "JSON malformatado: ${e.message}")),
-                correlationId = correlationId,
-            )
+            respondFailure(call, correlationId, e.toValidationError())
         } catch (e: IllegalArgumentException) {
-            respondValidationErrors(
-                call = call,
-                errors = listOf(ValidationError("payload", "INVALID_SCHEMA", e.message ?: "Argumento inválido")),
-                correlationId = correlationId,
-            )
+            respondFailure(call, correlationId, e.toValidationError())
         } catch (e: IllegalStateException) {
-            respondValidationErrors(
-                call = call,
-                errors = listOf(ValidationError("payload", "INVALID_SCHEMA", e.message ?: "Estado inválido")),
-                correlationId = correlationId,
-            )
+            respondFailure(call, correlationId, e.toValidationError())
         }
     }
 }
@@ -115,7 +95,7 @@ private suspend fun handleConversion(
     val conversionRequest =
         when (requestResult) {
             is ValidationResult.Failure -> {
-                respondValidationErrors(call, requestResult.errors, correlationId)
+                respondFailure(call, correlationId, requestResult.errors)
                 return
             }
             is ValidationResult.Success -> requestResult.value
@@ -123,7 +103,16 @@ private suspend fun handleConversion(
 
     val adapter = AdapterRegistry.getAdapter(conversionRequest.provider)
     if (adapter == null) {
-        respondUnsupportedProvider(call, conversionRequest.provider, correlationId)
+        respondFailure(
+            call = call,
+            correlationId = correlationId,
+            error =
+                ValidationError(
+                    field = "provider",
+                    errorCode = "UNSUPPORTED_PROVIDER",
+                    message = "Provedor não suportado: ${conversionRequest.provider}",
+                ),
+        )
         return
     }
 
@@ -131,74 +120,43 @@ private suspend fun handleConversion(
     val parseResult = adapter.convert(payload)
 
     when (parseResult) {
-        is ValidationResult.Failure -> respondValidationErrors(call, parseResult.errors, correlationId)
-        is ValidationResult.Success -> {
-            call.response.header("X-Correlation-ID", correlationId)
-            val responseJson = buildSuccessResponse(correlationId, parseResult.value)
-            call.respondText(responseJson, ContentType.Application.Json, HttpStatusCode.OK)
-        }
+        is ValidationResult.Failure -> respondFailure(call, correlationId, parseResult.errors)
+        is ValidationResult.Success -> respondSuccess(call, correlationId, parseResult.value)
     }
 }
 
-private suspend fun respondUnsupportedProvider(
+private fun Exception.toValidationError(): ValidationError =
+    when (this) {
+        is SerializationException ->
+            ValidationError("payload", "INVALID_SCHEMA", "JSON malformatado: ${message ?: ""}".trim())
+        else ->
+            ValidationError("payload", "INVALID_SCHEMA", message ?: "Argumento inválido")
+    }
+
+private suspend fun respondSuccess(
     call: ApplicationCall,
-    provider: String,
     correlationId: String,
+    draft: CanonicalDraft,
 ) {
     call.response.header("X-Correlation-ID", correlationId)
-    val response =
-        ConversionApiResponse(
-            correlationId = correlationId,
-            status = "FAILED",
-            draft = null,
-            errors =
-                listOf(
-                    ValidationErrorPayload(
-                        field = "provider",
-                        errorCode = "UNSUPPORTED_PROVIDER",
-                        message = "Provedor não suportado: $provider",
-                    ),
-                ),
-        )
-    call.respondText(jsonEncoder.encodeToString(response), ContentType.Application.Json, HttpStatusCode.BadRequest)
+    val response = ConversionApiResponse.success(correlationId, draft)
+    call.respondText(jsonEncoder.encodeToString(response), ContentType.Application.Json, HttpStatusCode.OK)
 }
 
-private suspend fun respondValidationErrors(
+private suspend fun respondFailure(
     call: ApplicationCall,
-    errors: List<ValidationError>,
     correlationId: String,
+    errors: List<ValidationError>,
     status: HttpStatusCode = HttpStatusCode.BadRequest,
 ) {
     call.response.header("X-Correlation-ID", correlationId)
-    val response =
-        ConversionApiResponse(
-            correlationId = correlationId,
-            status = "FAILED",
-            draft = null,
-            errors = errors.map { ValidationErrorPayload(it.field, it.errorCode, it.message) },
-        )
+    val response = ConversionApiResponse.failure(correlationId, errors)
     call.respondText(jsonEncoder.encodeToString(response), ContentType.Application.Json, status)
 }
 
-private fun buildSuccessResponse(
+private suspend fun respondFailure(
+    call: ApplicationCall,
     correlationId: String,
-    draft: CanonicalDraft,
-): String {
-    val response =
-        ConversionApiResponse(
-            correlationId = correlationId,
-            status = "SUCCESS",
-            draft =
-                CanonicalDraftPayload(
-                    guestName = draft.guestName,
-                    checkIn = draft.checkIn,
-                    checkOut = draft.checkOut,
-                    nights = draft.nights,
-                    roomsRequested = draft.rooms,
-                    channelReference = draft.channelReference,
-                    sourceProvider = draft.sourceProvider,
-                ),
-            errors = emptyList(),
-        )
-    return jsonEncoder.encodeToString(response)
-}
+    error: ValidationError,
+    status: HttpStatusCode = HttpStatusCode.BadRequest,
+) = respondFailure(call, correlationId, listOf(error), status)
