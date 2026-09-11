@@ -94,7 +94,7 @@ private fun Route.registerConvertRoute() {
         } catch (e: IllegalArgumentException) {
             respondValidationErrors(
                 call = call,
-                errors = listOf(ValidationError("payload", "INVALID_SCHEMA", e.message ?: "Argumento invalido")),
+                errors = listOf(ValidationError("payload", "INVALID_SCHEMA", e.message ?: "Argumento inválido")),
                 correlationId = correlationId,
             )
         }
@@ -113,7 +113,7 @@ private suspend fun handleConversion(
     if (payload == null) {
         respondValidationErrors(
             call = call,
-            errors = listOf(ValidationError("payload", "INVALID_SCHEMA", "payload obrigatorio")),
+            errors = listOf(ValidationError("payload", "INVALID_SCHEMA", "payload obrigatório")),
             correlationId = correlationId,
         )
         return
@@ -153,7 +153,7 @@ private suspend fun respondUnsupportedProvider(
                     ValidationErrorPayload(
                         field = "provider",
                         errorCode = "UNSUPPORTED_PROVIDER",
-                        message = "Provedor nao suportado: $provider",
+                        message = "Provedor não suportado: $provider",
                     ),
                 ),
         )

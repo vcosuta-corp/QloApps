@@ -14,19 +14,19 @@ fun validateCorrelationId(headerValue: String?): ValidationResult<String> {
                 ValidationError(
                     "X-Correlation-ID",
                     "HEADER_REQUIRED",
-                    "Header obrigatorio 'X-Correlation-ID' ausente.",
+                    "Header obrigatório 'X-Correlation-ID' ausente.",
                 )
             trimmed.isNullOrEmpty() ->
                 ValidationError(
                     "X-Correlation-ID",
                     "INVALID_HEADER",
-                    "Header 'X-Correlation-ID' nao pode ser vazio.",
+                    "Header 'X-Correlation-ID' não pode ser vazio.",
                 )
             !UUID_V4_REGEX.matches(trimmed) ->
                 ValidationError(
                     "X-Correlation-ID",
                     "INVALID_HEADER",
-                    "Header 'X-Correlation-ID' deve ser um UUID v4 valido.",
+                    "Header 'X-Correlation-ID' deve ser um UUID v4 válido.",
                 )
             else -> null
         }
@@ -44,7 +44,7 @@ fun validateContentType(headerValue: String?): ValidationError? {
             ValidationError(
                 "Content-Type",
                 "HEADER_REQUIRED",
-                "Header obrigatorio 'Content-Type' ausente.",
+                "Header obrigatório 'Content-Type' ausente.",
             )
         clean != "application/json" ->
             ValidationError(

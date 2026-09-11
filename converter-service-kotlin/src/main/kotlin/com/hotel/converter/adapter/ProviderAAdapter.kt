@@ -25,7 +25,7 @@ class ProviderAAdapter : ChannelAdapter {
                 ValidationError(
                     "guest_full_name",
                     "FIELD_REQUIRED",
-                    "Campo obrigatorio 'guest_full_name' nao encontrado no payload do PROVIDER_A.",
+                    "Campo obrigatório 'guest_full_name' não encontrado no payload do PROVIDER_A.",
                 ),
             )
         } else if (guestName.isEmpty()) {
@@ -33,7 +33,7 @@ class ProviderAAdapter : ChannelAdapter {
                 ValidationError(
                     "guest_full_name",
                     "INVALID_SCHEMA",
-                    "Nome do hospede nao pode ser vazio.",
+                    "Nome do hóspede não pode ser vazio.",
                 ),
             )
         }
@@ -70,7 +70,7 @@ class ProviderAAdapter : ChannelAdapter {
                 ValidationError(
                     "arrival",
                     "FIELD_REQUIRED",
-                    "Campo obrigatorio 'arrival' nao encontrado no payload do PROVIDER_A.",
+                    "Campo obrigatório 'arrival' não encontrado no payload do PROVIDER_A.",
                 ),
             )
             return null
@@ -82,7 +82,7 @@ class ProviderAAdapter : ChannelAdapter {
                 ValidationError(
                     "payload",
                     "INVALID_SCHEMA",
-                    "Formato de data invalido para 'arrival': ${e.message}",
+                    "Formato de data inválido para 'arrival': ${e.message}",
                 ),
             )
             null
@@ -100,7 +100,7 @@ class ProviderAAdapter : ChannelAdapter {
                 ValidationError(
                     "nights",
                     "FIELD_REQUIRED",
-                    "Campo obrigatorio 'nights' nao encontrado no payload do PROVIDER_A.",
+                    "Campo obrigatório 'nights' não encontrado no payload do PROVIDER_A.",
                 ),
             )
         } else if (nightsRaw == null) {
@@ -108,7 +108,7 @@ class ProviderAAdapter : ChannelAdapter {
                 ValidationError(
                     "nights",
                     "INVALID_SCHEMA",
-                    "Campo 'nights' deve ser um numero inteiro.",
+                    "Campo 'nights' deve ser um número inteiro.",
                 ),
             )
         } else if (nightsRaw <= 0) {
