@@ -88,7 +88,7 @@ class ProviderAAdapter : ChannelAdapter {
         } catch (e: DateTimeParseException) {
             errors.add(
                 ValidationError(
-                    "payload",
+                    "arrival",
                     "INVALID_SCHEMA",
                     "Formato de data inválido para 'arrival': ${e.message}",
                 ),

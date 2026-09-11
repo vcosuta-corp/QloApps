@@ -348,7 +348,30 @@ class ProviderBAdapterTest {
 
         assertTrue(result is ValidationResult.Failure)
         val errors = (result as ValidationResult.Failure).errors
-        val err = errors.firstOrNull { it.field == "payload" }
+        val err = errors.firstOrNull { it.field == "checkin_date" }
+        assertEquals("INVALID_SCHEMA", err?.errorCode)
+    }
+
+    @Test
+    fun `invalid date format in checkout_date returns INVALID_SCHEMA`() {
+        val payload =
+            buildJsonObject {
+                put(
+                    "customer",
+                    buildJsonObject {
+                        put("first_name", "Lucas")
+                        put("last_name", "Alves")
+                    },
+                )
+                put("checkin_date", "2026-12-20")
+                put("checkout_date", "2026/12/22")
+            }
+
+        val result = adapter.convert(payload)
+
+        assertTrue(result is ValidationResult.Failure)
+        val errors = (result as ValidationResult.Failure).errors
+        val err = errors.firstOrNull { it.field == "checkout_date" }
         assertEquals("INVALID_SCHEMA", err?.errorCode)
     }
 

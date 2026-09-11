@@ -197,7 +197,7 @@ class ConvertRouteApiTest {
             val errors = json["errors"]?.jsonArray
             assertTrue(errors != null && errors.isNotEmpty())
             val firstError = errors?.get(0)?.jsonObject
-            assertEquals("payload", firstError?.get("field")?.jsonPrimitive?.content)
+            assertEquals("arrival", firstError?.get("field")?.jsonPrimitive?.content)
             assertEquals("INVALID_SCHEMA", firstError?.get("error_code")?.jsonPrimitive?.content)
         }
 

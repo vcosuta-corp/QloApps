@@ -183,7 +183,7 @@ class ProviderAAdapterTest {
 
         assertTrue(result is ValidationResult.Failure)
         val errors = (result as ValidationResult.Failure).errors
-        val err = errors.firstOrNull { it.field == "payload" }
+        val err = errors.firstOrNull { it.field == "arrival" }
         assertEquals("INVALID_SCHEMA", err?.errorCode)
     }
 

@@ -98,7 +98,7 @@ class ProviderBAdapter : ChannelAdapter {
         } catch (e: DateTimeParseException) {
             errors.add(
                 ValidationError(
-                    "payload",
+                    field,
                     "INVALID_SCHEMA",
                     "Formato de data inválido para '$field': ${e.message}",
                 ),
