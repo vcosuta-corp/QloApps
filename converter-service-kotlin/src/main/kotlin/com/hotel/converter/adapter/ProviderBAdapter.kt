@@ -28,10 +28,7 @@ class ProviderBAdapter : ChannelAdapter {
         val guestName = validateCustomer(payload, errors)
         val dates = validateDates(payload, errors)
 
-        val roomCountRaw =
-            (payload["room_count"] ?: payload["rooms"])?.jsonPrimitive?.content?.toIntOrNull()
-        val hasRoomCount = payload["room_count"] != null || payload["rooms"] != null
-        val rooms = validateRooms(hasRoomCount, roomCountRaw, errors)
+        val rooms = resolveRoomCount(payload, errors)
         val channelRef = payload["reference_id"]?.jsonPrimitive?.content ?: "N/A"
 
         return if (errors.isNotEmpty() || dates == null) {

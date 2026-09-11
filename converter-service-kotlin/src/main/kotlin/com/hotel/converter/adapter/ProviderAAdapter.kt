@@ -26,7 +26,6 @@ class ProviderAAdapter : ChannelAdapter {
         val guestName = rawGuestName?.let { normalizeGuestName(it) }.orEmpty()
         val checkInStr = getStringField(payload, "arrival")
         val nightsRaw = payload["nights"]?.jsonPrimitive?.content?.toIntOrNull()
-        val roomsRaw = payload["room_count"]?.jsonPrimitive?.content?.toIntOrNull()
 
         val errors = mutableListOf<ValidationError>()
         if (rawGuestName == null) {
@@ -49,7 +48,7 @@ class ProviderAAdapter : ChannelAdapter {
 
         val inDate = validateArrival(checkInStr, errors)
         val nights = validateNights(payload["nights"] != null, nightsRaw, errors)
-        val rooms = validateRooms(payload["room_count"] != null, roomsRaw, errors)
+        val rooms = resolveRoomCount(payload, errors)
 
         return if (errors.isNotEmpty() || inDate == null) {
             ValidationResult.Failure(errors)
